@@ -8,26 +8,7 @@ from langchain.docstore.document import Document
 from langchain.embeddings.base import Embeddings
 from langchain.utils import get_from_dict_or_env
 from langchain.vectorstores.base import VectorStore
-
-def _default_text_mapping(dim: int) -> Dict:
-    return {
-        "properties": {
-            "text": {"type": "text"},
-            "vector": {"type": "dense_vector", "dims": dim},
-        }
-    }
-
-
-def _default_script_query(query_vector: List[int]) -> Dict:
-    return {
-        "script_score": {
-            "query": {"match_all": {}},
-            "script": {
-                "source": "cosineSimilarity(params.query_vector, 'vector') + 1.0",
-                "params": {"query_vector": query_vector},
-            },
-        }
-    }
+from langchain.vectorstores.elasticsearch.elastic_conf import ElasticConf
 
 
 class ElasticVectorSearch(VectorStore):
@@ -46,7 +27,11 @@ class ElasticVectorSearch(VectorStore):
     """
 
     def __init__(
-            self, elasticsearch_url: str, index_name: str, embedding_function: Callable
+            self,
+            elastic_conf: ElasticConf,
+            index_name: str,
+            embedding_function: Callable,
+            nested_metadata: bool = False
     ):
         """Initialize with necessary components."""
         try:
@@ -58,8 +43,10 @@ class ElasticVectorSearch(VectorStore):
             )
         self.embedding_function = embedding_function
         self.index_name = index_name
+        self.elastic_conf = elastic_conf
+        self.nested_metadata = nested_metadata
         try:
-            es_client = elasticsearch.Elasticsearch(elasticsearch_url)  # noqa
+            es_client = elastic_conf.elastic_client()  # noqa
         except ValueError as e:
             raise ValueError(
                 f"Your elasticsearch client string is misformatted. Got error: {e} "
@@ -67,7 +54,10 @@ class ElasticVectorSearch(VectorStore):
         self.client = es_client
 
     def add_texts(
-            self, texts: Iterable[str], metadatas: Optional[List[dict]] = None
+            self,
+            texts: Iterable[str],
+            metadatas: Optional[List[dict]] = None,
+            doc_ids: Optional[List[str]] = None
     ) -> List[str]:
         """Run more texts through the embeddings and add to the vectorstore.
 

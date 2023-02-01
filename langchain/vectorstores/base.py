@@ -13,7 +13,10 @@ class VectorStore(ABC):
 
     @abstractmethod
     def add_texts(
-        self, texts: Iterable[str], metadatas: Optional[List[dict]] = None
+            self,
+            texts: Iterable[str],
+            metadatas: Optional[List[dict]] = None,
+            documentIds: Optional[List[str]] = None
     ) -> List[str]:
         """Run more texts through the embeddings and add to the vectorstore.
 
