@@ -6,11 +6,20 @@ from typing import Any, Iterable, List, Optional
 
 from langchain.docstore.document import Document
 from langchain.embeddings.base import Embeddings
+from langchain.vectorstores.data_schema.base import DataSchemaBuilder
 from langchain.vectorstores.filters.base import VectorStoreFilter
 
 
 class VectorStore(ABC):
     """Interface for vector stores."""
+
+    @classmethod
+    @abstractmethod
+    def setup_index(cls, dims: int,
+                    index_name: str,
+                    data_schema_builder: DataSchemaBuilder = None,
+                    **kwargs: Any):
+        """Create index in vector store if needed"""
 
     @abstractmethod
     def add_texts(

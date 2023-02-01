@@ -8,17 +8,10 @@ from langchain.docstore.document import Document
 from langchain.embeddings.base import Embeddings
 from langchain.utils import get_from_dict_or_env
 from langchain.vectorstores.base import VectorStore
+from langchain.vectorstores.data_schema import ElasticDataSchemaBuilder
+from langchain.vectorstores.data_schema.base import DataSchemaBuilder
 from langchain.vectorstores.filters.base import VectorStoreFilter
 from langchain.vectorstores.elasticsearch.elastic_conf import ElasticConf
-
-
-def _default_text_mapping(dim: int) -> Dict:
-    return {
-        "properties": {
-            "text": {"type": "text"},
-            "vector": {"type": "dense_vector", "dims": dim},
-        }
-    }
 
 
 def _script_query(query_vector: List[int], query_filter: VectorStoreFilter) -> Dict:
@@ -72,6 +65,36 @@ class ElasticVectorSearch(VectorStore):
                 f"Your elasticsearch client string is misformatted. Got error: {e} "
             )
         self.client = es_client
+
+    @classmethod
+    def setup_index(cls,
+                    dims: int,
+                    index_name: str,
+                    data_schema_builder: DataSchemaBuilder = None,
+                    **kwargs: Any):
+        """Create index in vector store if needed"""
+        elasticsearch_url = get_from_dict_or_env(
+            kwargs, "elasticsearch_url", "ELASTICSEARCH_URL"
+        )
+
+        try:
+            import elasticsearch
+            from elasticsearch.helpers import bulk
+        except ImportError:
+            raise ValueError(
+                "Could not import elasticsearch python package. "
+                "Please install it with `pip install elasticearch`."
+            )
+        try:
+            client = elasticsearch.Elasticsearch(elasticsearch_url)
+        except ValueError as e:
+            raise ValueError(
+                "Your elasticsearch client string is misformatted. " f"Got error: {e} "
+            )
+
+        data_schema_builder = ElasticDataSchemaBuilder() if data_schema_builder is None else data_schema_builder
+        # If the index already exists, we don't need to do anything
+        client.indices.create(index=index_name, ignore=400, body=data_schema_builder.create_schema(dims))
 
     def add_texts(
             self,
@@ -189,13 +212,12 @@ class ElasticVectorSearch(VectorStore):
             raise ValueError(
                 "Your elasticsearch client string is misformatted. " f"Got error: {e} "
             )
+
         index_name = uuid.uuid4().hex
         embeddings = embedding.embed_documents(texts)
         dim = len(embeddings[0])
-        mapping = _default_text_mapping(dim)
-        # TODO would be nice to create index before embedding,
-        # just to save expensive steps for last
-        client.indices.create(index=index_name, mappings=mapping)
+        cls.setup_index(dim, index_name)
+
         requests = []
         for i, text in enumerate(texts):
             metadata = metadatas[i] if metadatas else {}
