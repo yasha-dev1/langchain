@@ -13,5 +13,5 @@ class VectorStoreFilter(ABC):
         """Add a filter to the filter chain for the vector store to match exactly the value"""
 
     @abstractmethod
-    def to_query_string(self) -> str:
+    def to_query_string(self, field_prefix: str = None) -> str:
         """Return the query string for the filter chain"""

@@ -8,7 +8,29 @@ from langchain.docstore.document import Document
 from langchain.embeddings.base import Embeddings
 from langchain.utils import get_from_dict_or_env
 from langchain.vectorstores.base import VectorStore
+from langchain.vectorstores.filters.base import VectorStoreFilter
 from langchain.vectorstores.elasticsearch.elastic_conf import ElasticConf
+
+
+def _default_text_mapping(dim: int) -> Dict:
+    return {
+        "properties": {
+            "text": {"type": "text"},
+            "vector": {"type": "dense_vector", "dims": dim},
+        }
+    }
+
+
+def _script_query(query_vector: List[int], query_filter: VectorStoreFilter) -> Dict:
+    return {
+        "script_score": {
+            "query": {query_filter.to_query_string()},
+            "script": {
+                "source": "cosineSimilarity(params.query_vector, 'vector') + 1.0",
+                "params": {"query_vector": query_vector},
+            },
+        }
+    }
 
 
 class ElasticVectorSearch(VectorStore):
@@ -30,8 +52,7 @@ class ElasticVectorSearch(VectorStore):
             self,
             elastic_conf: ElasticConf,
             index_name: str,
-            embedding_function: Callable,
-            nested_metadata: bool = False
+            embedding_function: Callable
     ):
         """Initialize with necessary components."""
         try:
@@ -44,7 +65,6 @@ class ElasticVectorSearch(VectorStore):
         self.embedding_function = embedding_function
         self.index_name = index_name
         self.elastic_conf = elastic_conf
-        self.nested_metadata = nested_metadata
         try:
             es_client = elastic_conf.elastic_client()  # noqa
         except ValueError as e:
@@ -57,11 +77,12 @@ class ElasticVectorSearch(VectorStore):
             self,
             texts: Iterable[str],
             metadatas: Optional[List[dict]] = None,
-            doc_ids: Optional[List[str]] = None
+            document_ids: Optional[List[str]] = None
     ) -> List[str]:
         """Run more texts through the embeddings and add to the vectorstore.
 
         Args:
+            document_ids: the document ids to be specified instead of random uuid
             texts: Iterable of strings to add to the vectorstore.
             metadatas: Optional list of metadatas associated with the texts.
 
@@ -79,7 +100,9 @@ class ElasticVectorSearch(VectorStore):
         ids = []
         for i, text in enumerate(texts):
             metadata = metadatas[i] if metadatas else {}
-            _id = str(uuid.uuid4())
+            _id = document_ids[i] if document_ids else str(uuid.uuid4())
+
+            # Creating the request
             request = {
                 "_op_type": "index",
                 "_index": self.index_name,
@@ -96,11 +119,12 @@ class ElasticVectorSearch(VectorStore):
         return ids
 
     def similarity_search(
-            self, query: str, k: int = 4, **kwargs: Any
+            self, query: str, k: int = 4, query_filter: VectorStoreFilter = None, **kwargs: Any
     ) -> List[Document]:
         """Return docs most similar to query.
 
         Args:
+            query_filter: the filter to use before computing ANN algorithm
             query: Text to look up documents similar to.
             k: Number of Documents to return. Defaults to 4.
 
@@ -108,13 +132,16 @@ class ElasticVectorSearch(VectorStore):
             List of Documents most similar to the query.
         """
         embedding = self.embedding_function(query)
-        script_query = _default_script_query(embedding)
+        script_query = _script_query(embedding, query_filter)
         response = self.client.search(index=self.index_name, query=script_query)
         hits = [hit["_source"] for hit in response["hits"]["hits"][:k]]
         documents = [
             Document(page_content=hit["text"], metadata=hit["metadata"]) for hit in hits
         ]
         return documents
+
+    def max_marginal_relevance_search(self, query: str, k: int = 4, fetch_k: int = 20) -> List[Document]:
+        raise NotImplementedError
 
     @classmethod
     def from_texts(
@@ -182,4 +209,4 @@ class ElasticVectorSearch(VectorStore):
             requests.append(request)
         bulk(client, requests)
         client.indices.refresh(index=index_name)
-        return cls(elasticsearch_url, index_name, embedding.embed_query)
+        return cls(ElasticConf(elasticsearch_url), index_name, embedding.embed_query)

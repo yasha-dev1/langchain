@@ -6,6 +6,7 @@ from typing import Any, Iterable, List, Optional
 
 from langchain.docstore.document import Document
 from langchain.embeddings.base import Embeddings
+from langchain.vectorstores.filters.base import VectorStoreFilter
 
 
 class VectorStore(ABC):
@@ -16,11 +17,12 @@ class VectorStore(ABC):
             self,
             texts: Iterable[str],
             metadatas: Optional[List[dict]] = None,
-            documentIds: Optional[List[str]] = None
+            document_ids: Optional[List[str]] = None
     ) -> List[str]:
         """Run more texts through the embeddings and add to the vectorstore.
 
         Args:
+            document_ids: which ID to use to identify the given document in the vector store
             texts: Iterable of strings to add to the vectorstore.
             metadatas: Optional list of metadatas associated with the texts.
 
@@ -30,12 +32,12 @@ class VectorStore(ABC):
 
     @abstractmethod
     def similarity_search(
-        self, query: str, k: int = 4, **kwargs: Any
+            self, query: str, k: int = 4, query_filter: VectorStoreFilter = None, **kwargs: Any
     ) -> List[Document]:
         """Return docs most similar to query."""
 
     def max_marginal_relevance_search(
-        self, query: str, k: int = 4, fetch_k: int = 20
+            self, query: str, k: int = 4, fetch_k: int = 20
     ) -> List[Document]:
         """Return docs selected using the maximal marginal relevance.
 
@@ -54,10 +56,10 @@ class VectorStore(ABC):
 
     @classmethod
     def from_documents(
-        cls,
-        documents: List[Document],
-        embedding: Embeddings,
-        **kwargs: Any,
+            cls,
+            documents: List[Document],
+            embedding: Embeddings,
+            **kwargs: Any,
     ) -> VectorStore:
         """Return VectorStore initialized from documents and embeddings."""
         texts = [d.page_content for d in documents]
@@ -67,10 +69,10 @@ class VectorStore(ABC):
     @classmethod
     @abstractmethod
     def from_texts(
-        cls,
-        texts: List[str],
-        embedding: Embeddings,
-        metadatas: Optional[List[dict]] = None,
-        **kwargs: Any,
+            cls,
+            texts: List[str],
+            embedding: Embeddings,
+            metadatas: Optional[List[dict]] = None,
+            **kwargs: Any,
     ) -> VectorStore:
         """Return VectorStore initialized from texts and embeddings."""

@@ -3,7 +3,7 @@ from typing import List
 
 from langchain.docstore.document import Document
 from langchain.embeddings.base import Embeddings
-from langchain.vectorstores.elastic_vector_search import ElasticVectorSearch
+from langchain.vectorstores.elasticsearch.elastic_vector_search import ElasticVectorSearch
 
 
 class FakeEmbeddings(Embeddings):
