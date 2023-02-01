@@ -8,21 +8,16 @@ from langchain.docstore.document import Document
 from langchain.embeddings.base import Embeddings
 from langchain.utils import get_from_dict_or_env
 from langchain.vectorstores.base import VectorStore
+from langchain.vectorstores.data_schema import ElasticDataSchemaBuilder
+from langchain.vectorstores.data_schema.base import DataSchemaBuilder
+from langchain.vectorstores.filters.base import VectorStoreFilter
+from langchain.vectorstores.elasticsearch.elastic_conf import ElasticConf
 
 
-def _default_text_mapping(dim: int) -> Dict:
-    return {
-        "properties": {
-            "text": {"type": "text"},
-            "vector": {"type": "dense_vector", "dims": dim},
-        }
-    }
-
-
-def _default_script_query(query_vector: List[int]) -> Dict:
+def _script_query(query_vector: List[int], query_filter: VectorStoreFilter) -> Dict:
     return {
         "script_score": {
-            "query": {"match_all": {}},
+            "query": {query_filter.to_query_string()},
             "script": {
                 "source": "cosineSimilarity(params.query_vector, 'vector') + 1.0",
                 "params": {"query_vector": query_vector},
@@ -47,7 +42,10 @@ class ElasticVectorSearch(VectorStore):
     """
 
     def __init__(
-        self, elasticsearch_url: str, index_name: str, embedding_function: Callable
+            self,
+            elastic_conf: ElasticConf,
+            index_name: str,
+            embedding_function: Callable
     ):
         """Initialize with necessary components."""
         try:
@@ -59,20 +57,55 @@ class ElasticVectorSearch(VectorStore):
             )
         self.embedding_function = embedding_function
         self.index_name = index_name
+        self.elastic_conf = elastic_conf
         try:
-            es_client = elasticsearch.Elasticsearch(elasticsearch_url)  # noqa
+            es_client = elastic_conf.elastic_client()  # noqa
         except ValueError as e:
             raise ValueError(
                 f"Your elasticsearch client string is misformatted. Got error: {e} "
             )
         self.client = es_client
 
+    @classmethod
+    def setup_index(cls,
+                    dims: int,
+                    index_name: str,
+                    data_schema_builder: DataSchemaBuilder = None,
+                    **kwargs: Any):
+        """Create index in vector store if needed"""
+        elasticsearch_url = get_from_dict_or_env(
+            kwargs, "elasticsearch_url", "ELASTICSEARCH_URL"
+        )
+
+        try:
+            import elasticsearch
+            from elasticsearch.helpers import bulk
+        except ImportError:
+            raise ValueError(
+                "Could not import elasticsearch python package. "
+                "Please install it with `pip install elasticearch`."
+            )
+        try:
+            client = elasticsearch.Elasticsearch(elasticsearch_url)
+        except ValueError as e:
+            raise ValueError(
+                "Your elasticsearch client string is misformatted. " f"Got error: {e} "
+            )
+
+        data_schema_builder = ElasticDataSchemaBuilder() if data_schema_builder is None else data_schema_builder
+        # If the index already exists, we don't need to do anything
+        client.indices.create(index=index_name, ignore=400, body=data_schema_builder.create_schema(dims))
+
     def add_texts(
-        self, texts: Iterable[str], metadatas: Optional[List[dict]] = None
+            self,
+            texts: Iterable[str],
+            metadatas: Optional[List[dict]] = None,
+            document_ids: Optional[List[str]] = None
     ) -> List[str]:
         """Run more texts through the embeddings and add to the vectorstore.
 
         Args:
+            document_ids: the document ids to be specified instead of random uuid
             texts: Iterable of strings to add to the vectorstore.
             metadatas: Optional list of metadatas associated with the texts.
 
@@ -90,7 +123,9 @@ class ElasticVectorSearch(VectorStore):
         ids = []
         for i, text in enumerate(texts):
             metadata = metadatas[i] if metadatas else {}
-            _id = str(uuid.uuid4())
+            _id = document_ids[i] if document_ids else str(uuid.uuid4())
+
+            # Creating the request
             request = {
                 "_op_type": "index",
                 "_index": self.index_name,
@@ -107,11 +142,12 @@ class ElasticVectorSearch(VectorStore):
         return ids
 
     def similarity_search(
-        self, query: str, k: int = 4, **kwargs: Any
+            self, query: str, k: int = 4, query_filter: VectorStoreFilter = None, **kwargs: Any
     ) -> List[Document]:
         """Return docs most similar to query.
 
         Args:
+            query_filter: the filter to use before computing ANN algorithm
             query: Text to look up documents similar to.
             k: Number of Documents to return. Defaults to 4.
 
@@ -119,7 +155,7 @@ class ElasticVectorSearch(VectorStore):
             List of Documents most similar to the query.
         """
         embedding = self.embedding_function(query)
-        script_query = _default_script_query(embedding)
+        script_query = _script_query(embedding, query_filter)
         response = self.client.search(index=self.index_name, query=script_query)
         hits = [hit["_source"] for hit in response["hits"]["hits"][:k]]
         documents = [
@@ -127,13 +163,16 @@ class ElasticVectorSearch(VectorStore):
         ]
         return documents
 
+    def max_marginal_relevance_search(self, query: str, k: int = 4, fetch_k: int = 20) -> List[Document]:
+        raise NotImplementedError
+
     @classmethod
     def from_texts(
-        cls,
-        texts: List[str],
-        embedding: Embeddings,
-        metadatas: Optional[List[dict]] = None,
-        **kwargs: Any,
+            cls,
+            texts: List[str],
+            embedding: Embeddings,
+            metadatas: Optional[List[dict]] = None,
+            **kwargs: Any,
     ) -> ElasticVectorSearch:
         """Construct ElasticVectorSearch wrapper from raw documents.
 
@@ -173,13 +212,12 @@ class ElasticVectorSearch(VectorStore):
             raise ValueError(
                 "Your elasticsearch client string is misformatted. " f"Got error: {e} "
             )
+
         index_name = uuid.uuid4().hex
         embeddings = embedding.embed_documents(texts)
         dim = len(embeddings[0])
-        mapping = _default_text_mapping(dim)
-        # TODO would be nice to create index before embedding,
-        # just to save expensive steps for last
-        client.indices.create(index=index_name, mappings=mapping)
+        cls.setup_index(dim, index_name)
+
         requests = []
         for i, text in enumerate(texts):
             metadata = metadatas[i] if metadatas else {}
@@ -193,4 +231,4 @@ class ElasticVectorSearch(VectorStore):
             requests.append(request)
         bulk(client, requests)
         client.indices.refresh(index=index_name)
-        return cls(elasticsearch_url, index_name, embedding.embed_query)
+        return cls(ElasticConf(elasticsearch_url), index_name, embedding.embed_query)
