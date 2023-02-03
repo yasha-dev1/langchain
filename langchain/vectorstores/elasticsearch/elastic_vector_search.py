@@ -207,18 +207,6 @@ class ElasticVectorSearch(VectorStore):
         embeddings = embedding.embed_documents(texts)
         dim = len(embeddings[0])
         cls.setup_index(index_name, ElasticDataSchemaBuilder(dim), elastic_conf=ElasticConf(elasticsearch_url))
-
-        requests = []
-        for i, text in enumerate(texts):
-            metadata = metadatas[i] if metadatas else {}
-            request = {
-                "_op_type": "index",
-                "_index": index_name,
-                "vector": embeddings[i],
-                "text": text,
-                "metadata": metadata,
-            }
-            requests.append(request)
-        bulk(client, requests)
-        client.indices.refresh(index=index_name)
-        return cls(ElasticConf(elasticsearch_url), index_name, embedding.embed_query)
+        elastic_vector = cls(ElasticConf(elasticsearch_url), index_name, embedding.embed_query)
+        elastic_vector.add_texts(texts, metadatas, None)
+        return elastic_vector
