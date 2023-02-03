@@ -17,30 +17,32 @@ class ElasticDataSchemaBuilder(DataSchemaBuilder):
 
     def create_schema(self) -> dict:
         base_mapping = {
-            "properties": {
-                "vector": {
-                    "type": "dense_vector",
-                    "dims": self.dims,
+            "mappings": {
+                "properties": {
+                    "vector": {
+                        "type": "dense_vector",
+                        "dims": self.dims,
+                    }
                 }
             }
         }
 
         # add metadata mapping
         if self.metadata_mapping:
-            base_mapping["properties"]["metadata"] = {
+            base_mapping["mappings"]["properties"]["metadata"] = {
                 "type": "object",
                 "properties": self.metadata_mapping,
             }
 
         # whether to index text or not
         if self.index_text:
-            base_mapping["properties"]["text"] = {
+            base_mapping["mappings"]["properties"]["text"] = {
                 "type": "text",
             }
         else:
-            base_mapping["properties"]["text"] = {
+            base_mapping["mappings"]["properties"]["text"] = {
                 "type": "text",
-                "enabled": False
+                "index": False
             }
 
         return base_mapping

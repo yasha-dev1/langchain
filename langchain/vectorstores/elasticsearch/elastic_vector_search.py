@@ -72,9 +72,7 @@ class ElasticVectorSearch(VectorStore):
                     data_schema_builder: DataSchemaBuilder,
                     **kwargs: Any):
         """Create index in vector store if needed"""
-        elasticsearch_url = get_from_dict_or_env(
-            kwargs, "elasticsearch_url", "ELASTICSEARCH_URL"
-        )
+        elastic_conf: ElasticConf = kwargs.get("elastic_conf")
 
         try:
             import elasticsearch
@@ -85,14 +83,14 @@ class ElasticVectorSearch(VectorStore):
                 "Please install it with `pip install elasticearch`."
             )
         try:
-            client = elasticsearch.Elasticsearch(elasticsearch_url)
+            client = elastic_conf.elastic_client()
         except ValueError as e:
             raise ValueError(
                 "Your elasticsearch client string is misformatted. " f"Got error: {e} "
             )
 
         # If the index already exists, we don't need to do anything
-        client.indices.create(index=index_name, ignore=400, body=data_schema_builder.create_schema())
+        client.indices.create(index=index_name, body=data_schema_builder.create_schema())
 
     def add_texts(
             self,
@@ -204,17 +202,11 @@ class ElasticVectorSearch(VectorStore):
                 "Could not import elasticsearch python package. "
                 "Please install it with `pip install elasticearch`."
             )
-        try:
-            client = elasticsearch.Elasticsearch(elasticsearch_url)
-        except ValueError as e:
-            raise ValueError(
-                "Your elasticsearch client string is misformatted. " f"Got error: {e} "
-            )
 
         index_name = uuid.uuid4().hex
         embeddings = embedding.embed_documents(texts)
         dim = len(embeddings[0])
-        cls.setup_index(dim, index_name)
+        cls.setup_index(index_name, ElasticDataSchemaBuilder(dim), elastic_conf=ElasticConf(elasticsearch_url))
 
         requests = []
         for i, text in enumerate(texts):
