@@ -15,9 +15,9 @@ class VectorStore(ABC):
 
     @classmethod
     @abstractmethod
-    def setup_index(cls, dims: int,
+    def setup_index(cls,
                     index_name: str,
-                    data_schema_builder: DataSchemaBuilder = None,
+                    data_schema_builder: DataSchemaBuilder,
                     **kwargs: Any):
         """Create index in vector store if needed"""
 

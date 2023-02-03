@@ -9,5 +9,5 @@ class DataSchemaBuilder(ABC):
     """Interface for creating data schema in vector store if needed"""
 
     @abstractmethod
-    def create_schema(self, dims: int) -> dict:
+    def create_schema(self) -> dict:
         """A data schema to be used in setup process of data schema generation of vector store"""

@@ -7,16 +7,20 @@ from langchain.vectorstores.data_schema.base import DataSchemaBuilder
 class ElasticDataSchemaBuilder(DataSchemaBuilder):
     """Filter that uses ElasticSearch as a backend."""
 
-    def __init__(self, metadata_mapping: dict = None, index_text: bool = False):
+    def __init__(self,
+                 dims: int,
+                 metadata_mapping: dict = None,
+                 index_text: bool = False):
         self.metadata_mapping = metadata_mapping
         self.index_text = index_text
+        self.dims = dims
 
-    def create_schema(self, dims: int) -> dict:
+    def create_schema(self) -> dict:
         base_mapping = {
             "properties": {
                 "vector": {
                     "type": "dense_vector",
-                    "dims": dims,
+                    "dims": self.dims,
                 }
             }
         }

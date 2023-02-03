@@ -68,9 +68,8 @@ class ElasticVectorSearch(VectorStore):
 
     @classmethod
     def setup_index(cls,
-                    dims: int,
                     index_name: str,
-                    data_schema_builder: DataSchemaBuilder = None,
+                    data_schema_builder: DataSchemaBuilder,
                     **kwargs: Any):
         """Create index in vector store if needed"""
         elasticsearch_url = get_from_dict_or_env(
@@ -92,9 +91,8 @@ class ElasticVectorSearch(VectorStore):
                 "Your elasticsearch client string is misformatted. " f"Got error: {e} "
             )
 
-        data_schema_builder = ElasticDataSchemaBuilder() if data_schema_builder is None else data_schema_builder
         # If the index already exists, we don't need to do anything
-        client.indices.create(index=index_name, ignore=400, body=data_schema_builder.create_schema(dims))
+        client.indices.create(index=index_name, ignore=400, body=data_schema_builder.create_schema())
 
     def add_texts(
             self,
