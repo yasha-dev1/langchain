@@ -152,15 +152,48 @@ class ElasticVectorSearch(VectorStore):
         Returns:
             List of Documents most similar to the query.
         """
-        filtered_query = query_filter or ElasticFilter()
         embedding = self.embedding_function(query)
-        script_query = _script_query(embedding, filtered_query)
+        return self.similarity_search_by_vector(embedding, k, query_filter, **kwargs)
+
+    def similarity_search_by_vector(
+            self, vector: List[int], k: int = 4, query_filter: VectorStoreFilter = None, **kwargs: Any
+    ) -> List[Document]:
+        """
+        Return docs most similar to a given embedding vector
+
+        Args:
+            vector: embedding vector to look up documents similar to
+            k: Number of Documents to return. Defaults to 4.
+            query_filter: the filter to use before computing ANN algorithm
+        """
+        filtered_query = query_filter or ElasticFilter()
+        script_query = _script_query(vector, filtered_query)
         response = self.client.search(index=self.index_name, query=script_query)
         hits = [hit["_source"] for hit in response["hits"]["hits"][:k]]
         documents = [
             Document(page_content=hit["text"], metadata=hit["metadata"]) for hit in hits
         ]
         return documents
+
+    def similarity_search_by_id(
+            self, doc_id: str, k: int = 4, query_filter: VectorStoreFilter = None, **kwargs: Any
+    ) -> List[Document]:
+        """
+        Return docs most similar to a given embedding vector
+
+        Args:
+            doc_id: document ID to look up documents similar to
+            k: Number of Documents to return. Defaults to 4.
+            query_filter: the filter to use before computing ANN algorithm
+        """
+
+        # Fetching the document vector
+        doc = self.client.get(index=self.index_name, id=doc_id, source_includes=["vector"])
+        if doc["found"]:
+            doc_vector = doc["_source"]["vector"]
+            return self.similarity_search_by_vector(doc_vector, k, query_filter)
+        else:
+            raise ValueError(f"Document with id {doc_id} not found")
 
     def max_marginal_relevance_search(self, query: str, k: int = 4, fetch_k: int = 20) -> List[Document]:
         raise NotImplementedError

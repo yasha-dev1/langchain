@@ -45,6 +45,18 @@ class VectorStore(ABC):
     ) -> List[Document]:
         """Return docs most similar to query."""
 
+    @abstractmethod
+    def similarity_search_by_id(
+            self, doc_id: str, k: int = 4, query_filter: VectorStoreFilter = None, **kwargs: Any
+    ) -> List[Document]:
+        """Return docs most similar to a document already saved with doc_id in vector store."""
+
+    @abstractmethod
+    def similarity_search_by_vector(
+            self, vector: List[int], k: int = 4, query_filter: VectorStoreFilter = None, **kwargs: Any
+    ) -> List[Document]:
+        """Return docs most similar to a given embedding vector from vector store."""
+
     def max_marginal_relevance_search(
             self, query: str, k: int = 4, fetch_k: int = 20
     ) -> List[Document]:
