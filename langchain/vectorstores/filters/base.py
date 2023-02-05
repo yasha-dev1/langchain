@@ -9,9 +9,9 @@ class VectorStoreFilter(ABC):
     """Interface for vector store Filters."""
 
     @abstractmethod
-    def add_filter_exact_match(self, field_name: str, field_value: List[Any]):
+    def add_filter_exact_match(self, field_name: str, field_value: Any):
         """Add a filter to the filter chain for the vector store to match exactly the value"""
 
     @abstractmethod
-    def to_query_string(self, field_prefix: str = None) -> str:
+    def to_query_string(self, field_prefix: str = None) -> dict:
         """Return the query string for the filter chain"""

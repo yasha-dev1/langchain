@@ -1,6 +1,7 @@
 """Wrapper around Elasticsearch vector database."""
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
@@ -10,6 +11,7 @@ from langchain.utils import get_from_dict_or_env
 from langchain.vectorstores.base import VectorStore
 from langchain.vectorstores.data_schema import ElasticDataSchemaBuilder
 from langchain.vectorstores.data_schema.base import DataSchemaBuilder
+from langchain.vectorstores.filters import ElasticFilter
 from langchain.vectorstores.filters.base import VectorStoreFilter
 from langchain.vectorstores.elasticsearch.elastic_conf import ElasticConf
 
@@ -17,7 +19,7 @@ from langchain.vectorstores.elasticsearch.elastic_conf import ElasticConf
 def _script_query(query_vector: List[int], query_filter: VectorStoreFilter) -> Dict:
     return {
         "script_score": {
-            "query": {query_filter.to_query_string()},
+            "query": query_filter.to_query_string(),
             "script": {
                 "source": "cosineSimilarity(params.query_vector, 'vector') + 1.0",
                 "params": {"query_vector": query_vector},
@@ -150,8 +152,9 @@ class ElasticVectorSearch(VectorStore):
         Returns:
             List of Documents most similar to the query.
         """
+        filtered_query = query_filter or ElasticFilter()
         embedding = self.embedding_function(query)
-        script_query = _script_query(embedding, query_filter)
+        script_query = _script_query(embedding, filtered_query)
         response = self.client.search(index=self.index_name, query=script_query)
         hits = [hit["_source"] for hit in response["hits"]["hits"][:k]]
         documents = [
