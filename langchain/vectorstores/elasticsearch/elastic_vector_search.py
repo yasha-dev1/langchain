@@ -16,7 +16,7 @@ from langchain.vectorstores.filters.base import VectorStoreFilter
 from langchain.vectorstores.elasticsearch.elastic_conf import ElasticConf
 
 
-def _script_query(query_vector: List[int], query_filter: VectorStoreFilter) -> Dict:
+def _script_query(query_vector: List[float], query_filter: VectorStoreFilter) -> Dict:
     return {
         "script_score": {
             "query": query_filter.to_query_string(),
@@ -190,7 +190,7 @@ class ElasticVectorSearch(VectorStore):
         return self.similarity_search_by_vector(embedding, k, query_filter, **kwargs)
 
     def similarity_search_by_vector(
-            self, vector: List[int], k: int = 4, query_filter: VectorStoreFilter = None, **kwargs: Any
+            self, vector: List[float], k: int = 4, query_filter: VectorStoreFilter = None, **kwargs: Any
     ) -> List[Document]:
         """
         Return docs most similar to a given embedding vector
