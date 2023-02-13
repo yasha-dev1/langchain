@@ -94,6 +94,55 @@ class ElasticVectorSearch(VectorStore):
         # If the index already exists, we don't need to do anything
         client.indices.create(index=index_name, body=data_schema_builder.create_schema())
 
+    def add_document_by_vector(self,
+                               vectors: List[List[float]],
+                               texts: Iterable[str],
+                               metadatas: Optional[List[dict]] = None,
+                               document_ids: Optional[List[str]] = None):
+        """Run more texts through the embeddings and add to the vectorstore.
+
+        Args:
+            document_ids: the document ids to be specified instead of random uuid
+            texts: Iterable of strings to add to the vectorstore.
+            metadatas: Optional list of metadatas associated with the texts.
+
+        Returns:
+            List of ids from adding the texts into the vectorstore.
+            @param document_ids:
+            @param metadatas:
+            @param texts:
+            @param vectors:
+        """
+        try:
+            from elasticsearch.helpers import bulk
+        except ImportError:
+            raise ValueError(
+                "Could not import elasticsearch python package. "
+                "Please install it with `pip install elasticsearch`."
+            )
+        requests = []
+        ids = []
+        for i, text in enumerate(texts):
+            metadata = metadatas[i] if metadatas else {}
+            vector = vectors[i]
+            _id = document_ids[i] if document_ids else str(uuid.uuid4())
+
+            # Creating the request
+            request = {
+                "_op_type": "index",
+                "_index": self.index_name,
+                "vector": vector,
+                "text": text,
+                "metadata": metadata,
+                "_id": _id,
+            }
+            ids.append(_id)
+            requests.append(request)
+        bulk(self.client, requests)
+        # TODO: add option not to refresh
+        self.client.indices.refresh(index=self.index_name)
+        return ids
+
     def add_texts(
             self,
             texts: Iterable[str],
@@ -119,25 +168,10 @@ class ElasticVectorSearch(VectorStore):
             )
         requests = []
         ids = []
+        vectors = []
         for i, text in enumerate(texts):
-            metadata = metadatas[i] if metadatas else {}
-            _id = document_ids[i] if document_ids else str(uuid.uuid4())
-
-            # Creating the request
-            request = {
-                "_op_type": "index",
-                "_index": self.index_name,
-                "vector": self.embedding_function(text),
-                "text": text,
-                "metadata": metadata,
-                "_id": _id,
-            }
-            ids.append(_id)
-            requests.append(request)
-        bulk(self.client, requests)
-        # TODO: add option not to refresh
-        self.client.indices.refresh(index=self.index_name)
-        return ids
+            vectors.append(self.embedding_function(text))
+        return self.add_document_by_vector(vectors, texts, metadatas, document_ids)
 
     def similarity_search(
             self, query: str, k: int = 4, query_filter: VectorStoreFilter = None, **kwargs: Any
