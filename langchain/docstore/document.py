@@ -10,6 +10,7 @@ class Document(BaseModel):
     page_content: str
     lookup_str: str = ""
     lookup_index = 0
+    similarity_score: float = -1.0
     metadata: dict = Field(default_factory=dict)
 
     @property

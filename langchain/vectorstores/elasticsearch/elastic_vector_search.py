@@ -169,10 +169,17 @@ class ElasticVectorSearch(VectorStore):
         filtered_query = query_filter or ElasticFilter()
         script_query = _script_query(vector, filtered_query)
         response = self.client.search(index=self.index_name, query=script_query)
+        scores = [hit["_score"] for hit in response["hits"]["hits"][:k]]
         hits = [hit["_source"] for hit in response["hits"]["hits"][:k]]
-        documents = [
-            Document(page_content=hit["text"], metadata=hit["metadata"]) for hit in hits
-        ]
+        documents = []
+        for hit, score in zip(hits, scores):
+            documents.append(
+                Document(
+                    page_content=hit["text"],
+                    metadata=hit["metadata"],
+                    similarity_score=score,
+                )
+            )
         return documents
 
     def similarity_search_by_id(
