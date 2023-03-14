@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "langchain"
-version = "0.0.100"
+version = "0.0.109"
 description = "Building applications with LLMs through composability"
 authors = []
 license = "MIT"
@@ -65,6 +65,7 @@ sphinx-panels = "^0.6.0"
 toml = "^0.10.2"
 myst-nb = "^0.17.1"
 linkchecker = "^10.2.1"
+sphinx-copybutton = "^0.5.1"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.2.0"
@@ -96,7 +97,7 @@ playwright = "^1.28.0"
 
 [tool.poetry.extras]
 llms = ["anthropic", "cohere", "openai", "nlpcloud", "huggingface_hub", "manifest-ml", "torch", "transformers"]
-all = ["anthropic", "cohere", "openai", "nlpcloud", "huggingface_hub", "manifest-ml", "elasticsearch", "opensearch-py", "google-search-results", "faiss-cpu", "sentence_transformers", "transformers", "spacy", "nltk", "wikipedia", "beautifulsoup4", "tiktoken", "torch", "jinja2", "pinecone-client", "weaviate-client", "redis", "google-api-python-client", "wolframalpha", "qdrant-client", "tensorflow-text", "pypdf", "networkx", "nomic"]
+all = ["anthropic", "cohere", "openai", "nlpcloud", "huggingface_hub", "manifest-ml", "elasticsearch", "opensearch-py", "google-search-results", "faiss-cpu", "sentence_transformers", "transformers", "spacy", "nltk", "wikipedia", "beautifulsoup4", "tiktoken", "torch", "jinja2", "pinecone-client", "weaviate-client", "redis", "google-api-python-client", "wolframalpha", "qdrant-client", "tensorflow-text", "pypdf", "networkx", "nomic", "aleph-alpha-client", "deeplake", ]
 
 [tool.ruff]
 select = [
